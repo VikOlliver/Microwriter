@@ -7,4 +7,6 @@ The chord sequence is vaguely mnemonic, but where the Microwriter/Quinkey patent
 
 This version uses ATMega32u4 Arduino-compatible devices to scan the six keys and generate standard US USB HID keyboard and mouse (yes, mouse) input. Internal pullups are used, so beyond the microswitches and a USB lead no other components are needed.
 
+A 3D-printable shell for the device can be found at https://www.thingiverse.com/thing:3433244
+
 The original Microwriter used an RCA 1802 CPU and LCD for the user interface, and uploaded via RS232. A TV interface was also available. The author (Vik Olliver) created the original Amstrad and IBM Quinkey drivers.
