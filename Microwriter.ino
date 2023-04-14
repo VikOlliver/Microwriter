@@ -24,7 +24,7 @@ const int keyPorts[] = {8, 7, 6, 5, 4, 9};
 const char alphaTable[] = " eiocadsktrny.fuhvlqz-'gj,wbxmp";
 const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8x95";
 const char extraTable[] = {0, KEY_ESC, 0, 0, 0, '[', KEY_DELETE, 0,
-                           KEY_HOME, 0, 0, 0, 0, 0, KEY_END, 0,
+                           KEY_HOME, '_', 0, 0, 0, 0, KEY_END, 0,
                            0, '\\', 0, ']', KEY_PAGE_DOWN, 0, 0, 0,
                            KEY_PAGE_UP, 0, 0, 0, 0, 0, 0, 0
                           };
