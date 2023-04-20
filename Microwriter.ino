@@ -172,11 +172,13 @@ void loop() {
   x = keyWait();
   Serial.println(x);
   if (x < 32) {
-    if (numericed != 0)
+    if (numericed != 0) {
+      // Numeric character
       Keyboard.write(numericTable[x - 1]);
-    else if (extraed != 0) {
-      Serial.print("Extra ");
-      Serial.println(x);
+      // Some numeric characters press the shift key,
+      // so make sure it is put back down if locked.
+      if (shifted == 2) Keyboard.press(KEY_LEFT_SHIFT);
+    } else if (extraed != 0) {
       Keyboard.write(extraTable[x - 1]);
     } else if (funced != 0)
       Keyboard.write(funcTable[x - 1]);
