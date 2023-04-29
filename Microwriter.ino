@@ -17,14 +17,17 @@
 #define KEYS_EXTRA_SHIFT  1005
 #define KEYS_MOUSE_MODE_ON  1006
 #define KEYS_FUNC_SHIFT  1007
+#define KEYS_ALTGR_SHIFT  1008
 
-// Thumb, 1st, index, ring, pinkie, control pins.
+// Ctrl, pinkie, ring, middle, 1st, thumb pins.
+// Activating a switch grounds the respective pin.
 const int keyPorts[] = {8, 7, 6, 5, 4, 9};
 
 const char alphaTable[] = " eiocadsktrny.fuhvlqz-'gj,wbxmp";
 const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8x95";
 const char extraTable[] = {0, KEY_ESC, 0, 0, 0, '[', KEY_DELETE, 0,
-                           KEY_HOME, '_', 0, 0, 0, 0, KEY_END, 0,
+                           // k
+                           KEY_HOME, 0, 0, 0, 0, 0, KEY_END, 0,
                            0, '\\', 0, ']', KEY_PAGE_DOWN, 0, 0, 0,
                            KEY_PAGE_UP, 0, 0, 0, 0, 0, 0, 0
                           };
@@ -33,9 +36,11 @@ const char funcTable[] = {0, KEY_F1, KEY_F2, KEY_F10, 0, KEY_F11, KEY_F3, 0,
                           0, 0, 0, 0, 0, 0, 0, KEY_F7,
                           0, 0, 0, KEY_F8, 0, KEY_F9, KEY_F5
                          };
+                         // Ctrl          Ctrl-Space
 const int shiftTable[] = {KEYS_SHIFT_ON, KEYS_SHIFT_OFF, KEY_INSERT, KEYS_MOUSE_MODE_ON, KEY_RETURN, 0, KEY_BACKSPACE, 0,
                           KEY_LEFT_ARROW, 0, KEY_TAB, 0, KEYS_NUMERIC_SHIFT, 0, KEY_RIGHT_ARROW, 0,
-                          KEYS_EXTRA_SHIFT, 0, KEYS_FUNC_SHIFT, 0, KEY_DOWN_ARROW, 0, 0, 0,
+                          // Ctrl-H         Ctrl-space-H      Ctrl-L              Ctrl-Z
+                          KEYS_EXTRA_SHIFT, KEYS_ALTGR_SHIFT, KEYS_FUNC_SHIFT, 0, KEY_DOWN_ARROW, 0, 0, 0,
                           KEY_UP_ARROW, 0, 0, 0, KEYS_CONTROL_SHIFT, 0, KEYS_ALT_SHIFT, 0
                          };
 
@@ -51,6 +56,8 @@ char alted = 0;
 char extraed = 0;
 // >0 when using function key table
 char funced = 0;
+// >0 When right Alt is down
+char altgred=0;
 
 void setup() {
   int i = 0;
@@ -106,6 +113,7 @@ void everythingOff() {
   alted = 0;
   extraed = 0;
   funced = 0;
+  altgred=0;
 }
 
 /* Uses finger keys as LUDR, thumb as click 1 & 2.
@@ -170,7 +178,7 @@ void loop() {
   int x;
 
   x = keyWait();
-  Serial.println(x);
+  //Serial.println(x);
   if (x < 32) {
     if (numericed != 0) {
       // Numeric character
@@ -179,10 +187,14 @@ void loop() {
       // so make sure it is put back down if locked.
       if (shifted == 2) Keyboard.press(KEY_LEFT_SHIFT);
     } else if (extraed != 0) {
+      //Serial.print("Extra ");
+      //Serial.println(x);
       Keyboard.write(extraTable[x - 1]);
-    } else if (funced != 0)
+    } else if (funced != 0) {
+      //Serial.print("Func ");
+      //Serial.println(x);
       Keyboard.write(funcTable[x - 1]);
-    else
+    } else
       Keyboard.write(alphaTable[x - 1]);
 
     if (shifted == 1) { // Clear a single shift.
@@ -196,6 +208,10 @@ void loop() {
     if (alted == 1) { // Clear a single alt shift.
       alted = 0;
       Keyboard.release(KEY_LEFT_ALT);
+    }
+    if (altgred == 1) { // Clear a single alt shift.
+      altgred = 0;
+      Keyboard.release(KEY_RIGHT_ALT);
     }
     // Clear temporary numeric, extra and func shift
     numericed &= 2;
@@ -234,6 +250,11 @@ void loop() {
         case KEYS_ALT_SHIFT:
           if (++alted > 2) alted = 2;
           Keyboard.press(KEY_LEFT_ALT);
+          break;
+
+        case KEYS_ALTGR_SHIFT:
+          if (++altgred > 2) altgred = 2;
+          Keyboard.press(KEY_RIGHT_ALT);
           break;
 
         case KEYS_FUNC_SHIFT:
