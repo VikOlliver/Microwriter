@@ -6,9 +6,12 @@
 #include <Keyboard.h>
 #include <Mouse.h>
 
-#define NUM_KEYS  6
-#define MOUSE_DELAY_MAX  30;
+// After moving this number of ticks, the mouse will accelerate
+#define MOUSE_ACCELERATION_POINT 40
+// Maximum speedup on mouse
+#define MOUSE_MAX_ACCELERATION 7
 
+#define NUM_KEYS  6
 #define KEYS_SHIFT_ON  1000
 #define KEYS_SHIFT_OFF  1001
 #define KEYS_NUMERIC_SHIFT 1002
@@ -24,7 +27,7 @@
 const int keyPorts[] = {8, 7, 6, 5, 4, 9};
 
 const char alphaTable[] = " eiocadsktrny.fuhvlqz-'gj,wbxmp";
-const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8'95";
+const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8`95";
 const char extraTable[] = {0, KEY_ESC, 0, 0, 0, '[', KEY_DELETE, 0,
                            // k
                            KEY_HOME, 0, 0, 0, 0, 0, KEY_END, 0,
@@ -121,28 +124,40 @@ void everythingOff() {
 void mouseMode() {
   int k = 0;
   int x, y;
-  int mouseDelay = MOUSE_DELAY_MAX;
+  int mouseTicks = 0;
+  int mouseMove=1;
 
   Mouse.begin();
   while (true) {
+    // Determine if the mouse is accelerating or not. If it is, bump up movement factor
+    if (mouseTicks > MOUSE_ACCELERATION_POINT) {
+        mouseMove = int(mouseTicks/MOUSE_ACCELERATION_POINT);
+        if (mouseMove > MOUSE_MAX_ACCELERATION)
+            mouseMove = MOUSE_MAX_ACCELERATION;
+    } else
+        mouseMove = 1;
+        
     k = keyBits();
     if (k == 30) break; // Quit mousing if all 4 move keys hit.
-    if (k == 0) mouseDelay = MOUSE_DELAY_MAX;
+    if (k == 0)
+      // Mouse stopped moving.
+      mouseTicks = 0;
+
     if ((k & 2) != 0) {
       // Mouse left
-      x = -1;
+      x = -mouseMove;
     }
     if ((k & 16) != 0) {
       // Mouse right
-      x = 1;
+      x = mouseMove;
     }
     if ((k & 4) != 0) {
       // Mouse up
-      y = -1;
+      y = -mouseMove;
     }
     if ((k & 8) != 0) {
       // Mouse down
-      y = 1;
+      y = mouseMove;
     }
 
     // Mouse clicks
@@ -163,11 +178,10 @@ void mouseMode() {
     // If keys moved, move mouse.
     if ((x != 0) || (y != 0)) {
       Mouse.move(x, y, 0);
-      delay(mouseDelay--);
+      delay(10);
+      mouseTicks++;
       x = y = 0;
     }
-    // If acceleration is at maximum, do not exceed it!
-    if (mouseDelay < 4) mouseDelay = 4;
   }
   Mouse.end();
   // Wait for all keys up
