@@ -10,7 +10,10 @@
 #define MOUSE_ACCELERATION_POINT 40
 // Maximum speedup on mouse
 #define MOUSE_MAX_ACCELERATION 7
-
+// Interval before repeating the key in 10ms increments
+#define REPEAT_START_DELAY 220
+// Interval between repeating chords in 10ms increments
+#define REPEAT_INTERVAL_DELAY 8
 #define NUM_KEYS  6
 #define KEYS_SHIFT_ON  1000
 #define KEYS_SHIFT_OFF  1001
@@ -47,6 +50,8 @@ const int shiftTable[] = {KEYS_SHIFT_ON, KEYS_SHIFT_OFF, KEY_INSERT, KEYS_MOUSE_
                           KEY_UP_ARROW, 0, 0, 0, KEYS_CONTROL_SHIFT, 0, KEYS_ALT_SHIFT, 0
                          };
 
+// Chord to repeat, 0 if none.
+char repeatingChord = 0;
 // >0 when shift is on.
 char shifted = 0;
 // >0 when using numeric table
@@ -91,21 +96,76 @@ int keyBits() {
   return (k);
 }
 
-int keyWait() {
-  int k, x;
+/**************************************************************************
+ * If the repeating chord is still held down, return it after a brief delay.
+ * Otherwise, wait until all keys are released and return zero.
+ */
+int getRepeatingChord() {
+  int k = 0;
 
-  x = 0;
-  k = 0;
-  while (-1) {
+  while (true) {
     // Debounce
     while (k != keyBits()) {
       delay(10);
       k = keyBits();
     }
-    x |= k;
-    if ((x != 0) && (k == 0)) break;
+    
+    // If the chord matches the repeat, delay a bit and return the chord
+    if (k == repeatingChord) {
+      delay(10*REPEAT_INTERVAL_DELAY);
+      return(k);
+    }
+
+    // Whatever the chord changed to, we wait for it to go away
+    while (keyBits() != 0) delay(10);
+    repeatingChord = 0;
+    return(0);
   }
-  return (x);
+}
+
+int keyWait() {
+  int k, x;
+  int timer=0;
+  x = 0;
+  k = 0;
+
+  // If repeating a chord, get it after a delay etc.
+  if (repeatingChord != 0) {
+    x = getRepeatingChord();
+    if (x != 0)
+      return(x);
+      // If we drop out there, the repeat ended and we need a new chord.
+  }
+
+  
+  while (true) {
+    // Debounce
+    while (k != keyBits()) {
+      delay(10);
+      k = keyBits();
+    }
+    // Key bit map is now stable.
+    // If the chord changed, reset the repeat timer.
+    if (x != k)
+      timer = 0;
+    // Accumulate key bit changes
+    x |= k;
+    // If all keys released, return accumulated chord
+    if ((x != 0) && (k == 0))
+      return(x);
+    // Do the next repeat time increment
+    delay(10);
+    // If keys are still down and we have exceeded repeat time, enter
+    // repeat mode and return the chord.
+    if (k != 0)
+      timer++;
+    if (timer > REPEAT_START_DELAY) {
+      repeatingChord = x;
+      break;
+    }
+    
+  }
+  return(x);
 }
 
 void everythingOff() {
