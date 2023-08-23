@@ -6,9 +6,15 @@
 #include <Keyboard.h>
 #include <Mouse.h>
 
+// After moving this number of ticks, the mouse will accelerate
+#define MOUSE_ACCELERATION_POINT 40
+// Maximum speedup on mouse
+#define MOUSE_MAX_ACCELERATION 7
+// Interval before repeating the key in 10ms increments
+#define REPEAT_START_DELAY 220
+// Interval between repeating chords in 10ms increments
+#define REPEAT_INTERVAL_DELAY 8
 #define NUM_KEYS  6
-#define MOUSE_DELAY_MAX  30;
-
 #define KEYS_SHIFT_ON  1000
 #define KEYS_SHIFT_OFF  1001
 #define KEYS_NUMERIC_SHIFT 1002
@@ -24,11 +30,11 @@
 const int keyPorts[] = {8, 7, 6, 5, 4, 9};
 
 const char alphaTable[] = " eiocadsktrny.fuhvlqz-'gj,wbxmp";
-const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8x95";
-const char extraTable[] = {0, KEY_ESC, 0, 0, 0, '[', KEY_DELETE, 0,
+const char numericTable[] = " 120(*3$/+;\"?.46-&#)%!@7=,:8`95";
+const char extraTable[] = {0, KEY_ESC, 0, 0, '[', 0, KEY_DELETE, 0,
                            // k
-                           KEY_HOME, 0, 0, '\\', 0, 0, KEY_END, 0,
-                           0, 0, 0, ']', KEY_PAGE_DOWN, 0, 0, 0,
+                           KEY_HOME, 0, 0, 0, 0, 0, KEY_END, 0,
+                           0, '\\', 0, ']', KEY_PAGE_DOWN, 0, 0, 0,
                            KEY_PAGE_UP, 0, 0, 0, 0, 0, 0, 0
                           };
 const char funcTable[] = {0, KEY_F1, KEY_F2, KEY_F10, 0, KEY_F11, KEY_F3, 0,
@@ -44,6 +50,8 @@ const int shiftTable[] = {KEYS_SHIFT_ON, KEYS_SHIFT_OFF, KEY_INSERT, KEYS_MOUSE_
                           KEY_UP_ARROW, 0, 0, 0, KEYS_CONTROL_SHIFT, 0, KEYS_ALT_SHIFT, 0
                          };
 
+// Chord to repeat, 0 if none.
+char repeatingChord = 0;
 // >0 when shift is on.
 char shifted = 0;
 // >0 when using numeric table
@@ -88,21 +96,76 @@ int keyBits() {
   return (k);
 }
 
-int keyWait() {
-  int k, x;
+/**************************************************************************
+ * If the repeating chord is still held down, return it after a brief delay.
+ * Otherwise, wait until all keys are released and return zero.
+ */
+int getRepeatingChord() {
+  int k = 0;
 
-  x = 0;
-  k = 0;
-  while (-1) {
+  while (true) {
     // Debounce
     while (k != keyBits()) {
       delay(10);
       k = keyBits();
     }
-    x |= k;
-    if ((x != 0) && (k == 0)) break;
+    
+    // If the chord matches the repeat, delay a bit and return the chord
+    if (k == repeatingChord) {
+      delay(10*REPEAT_INTERVAL_DELAY);
+      return(k);
+    }
+
+    // Whatever the chord changed to, we wait for it to go away
+    while (keyBits() != 0) delay(10);
+    repeatingChord = 0;
+    return(0);
   }
-  return (x);
+}
+
+int keyWait() {
+  int k, x;
+  int timer=0;
+  x = 0;
+  k = 0;
+
+  // If repeating a chord, get it after a delay etc.
+  if (repeatingChord != 0) {
+    x = getRepeatingChord();
+    if (x != 0)
+      return(x);
+      // If we drop out there, the repeat ended and we need a new chord.
+  }
+
+  
+  while (true) {
+    // Debounce
+    while (k != keyBits()) {
+      delay(10);
+      k = keyBits();
+    }
+    // Key bit map is now stable.
+    // If the chord changed, reset the repeat timer.
+    if (x != k)
+      timer = 0;
+    // Accumulate key bit changes
+    x |= k;
+    // If all keys released, return accumulated chord
+    if ((x != 0) && (k == 0))
+      return(x);
+    // Do the next repeat time increment
+    delay(10);
+    // If keys are still down and we have exceeded repeat time, enter
+    // repeat mode and return the chord.
+    if (k != 0)
+      timer++;
+    if (timer > REPEAT_START_DELAY) {
+      repeatingChord = x;
+      break;
+    }
+    
+  }
+  return(x);
 }
 
 void everythingOff() {
@@ -121,28 +184,40 @@ void everythingOff() {
 void mouseMode() {
   int k = 0;
   int x, y;
-  int mouseDelay = MOUSE_DELAY_MAX;
+  int mouseTicks = 0;
+  int mouseMove=1;
 
   Mouse.begin();
   while (true) {
+    // Determine if the mouse is accelerating or not. If it is, bump up movement factor
+    if (mouseTicks > MOUSE_ACCELERATION_POINT) {
+        mouseMove = int(mouseTicks/MOUSE_ACCELERATION_POINT);
+        if (mouseMove > MOUSE_MAX_ACCELERATION)
+            mouseMove = MOUSE_MAX_ACCELERATION;
+    } else
+        mouseMove = 1;
+        
     k = keyBits();
     if (k == 30) break; // Quit mousing if all 4 move keys hit.
-    if (k == 0) mouseDelay = MOUSE_DELAY_MAX;
+    if (k == 0)
+      // Mouse stopped moving.
+      mouseTicks = 0;
+
     if ((k & 2) != 0) {
       // Mouse left
-      x = -1;
+      x = -mouseMove;
     }
     if ((k & 16) != 0) {
       // Mouse right
-      x = 1;
+      x = mouseMove;
     }
     if ((k & 4) != 0) {
       // Mouse up
-      y = -1;
+      y = -mouseMove;
     }
     if ((k & 8) != 0) {
       // Mouse down
-      y = 1;
+      y = mouseMove;
     }
 
     // Mouse clicks
@@ -163,11 +238,10 @@ void mouseMode() {
     // If keys moved, move mouse.
     if ((x != 0) || (y != 0)) {
       Mouse.move(x, y, 0);
-      delay(mouseDelay--);
+      delay(10);
+      mouseTicks++;
       x = y = 0;
     }
-    // If acceleration is at maximum, do not exceed it!
-    if (mouseDelay < 4) mouseDelay = 4;
   }
   Mouse.end();
   // Wait for all keys up
